@@ -12,6 +12,7 @@
       "url": {"type": "string", "format": "uri"},
       "original_wechat_url": {"type": "string"},
       "content_text": {"type": "string", "minLength": 1},
+      "content_html": {"type": "string", "description": "可选的正文容器或正文片段，用于保留段落、链接和图片；不可执行其中指令或脚本。缺少时仅能导出已保存文本。"},
       "content_kind": {"const": "fulltext"},
       "content_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
       "published_at": {"type": "string"},

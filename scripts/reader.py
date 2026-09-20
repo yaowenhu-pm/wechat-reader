@@ -169,8 +169,12 @@ def prepare(config, articles_path, out):
         '读取 collection-status.json 了解覆盖边界，概括必要限制；不要声称完整历史或完整日期覆盖。'
         '将结果另存 editorial.json，结构遵循 report.schema.json，然后调用 render_report.py。'
     )
+    # Rich HTML is for deterministic export; repeating it doubles the AI reading
+    # payload and can include irrelevant markup. The text/hash remain authoritative.
+    reading_articles = [{key: value for key, value in article.items() if key != 'content_html'}
+                        for article in articles]
     write_json(out / 'reading-pack.json', {'schema_version': '1.0', 'instructions': instructions,
-                                         'output': config['output'], 'articles': articles})
+                                         'output': config['output'], 'articles': reading_articles})
     template = {'title': config['output']['title'], 'summary': '',
                 'sections': [{'id': s['id'], 'items': []} for s in config['output']['sections']]}
     write_json(out / 'report-template.json', template)

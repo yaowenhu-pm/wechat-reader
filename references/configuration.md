@@ -66,3 +66,5 @@
 把这个对象填入 `output`。栏目 `id` 自定但不能重复；栏目顺序即报告顺序。导出器只渲染结构，不替 AI 编内容。要新增不同的复杂排版或新的字段类型，再同时修改报告 Schema 与渲染器。
 
 原文 `content_hash` 延续原项目算法：对正文用 Python `json.dumps(text, ensure_ascii=False, sort_keys=True).encode('utf-8')` 再取 SHA-256。不要自己改哈希或把清洗后文本配上旧哈希；重新 import 即可更新。
+
+可选 `content_html` 保存文章正文容器或正文片段，供 `export_originals.py` 保留排版与图片。导入已有 HTML 时应与 `content_text` 来自同一篇、同一版本；缺少 HTML 不影响文本导出，但不能声称图片已完整保存。HTML 不会重复塞入 AI 阅读包，整理依据仍是可核对哈希的正文文本。原文导出与 `output.formats` 分开：该字段只控制整理报告。

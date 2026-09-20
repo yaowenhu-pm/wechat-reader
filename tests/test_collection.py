@@ -72,6 +72,41 @@ class CollectionTests(unittest.TestCase):
         with patch.object(c, 'Client', return_value=client):
             return c.collect(settings, self.out, self.out)
 
+    def test_direct_article_retains_body_markup_without_page_metadata(self):
+        fragment = '<div id="js_content"><section><p>' + TEXT + '</p><img data-src="https://mmbiz.qpic.cn/test.png"><br/>尾段 &amp; 注释</section></div>'
+        raw = ('<html><script>var page_secret="not-for-export";</script>'
+               '<div id="js_name">测试公众号</div><h1 id="activity-name">标题</h1>'
+               + fragment + '<div>广告及评论</div></html>')
+        with patch.object(c, 'request', return_value=(raw, 'https://mp.weixin.qq.com/s/test')):
+            result = c._direct_article('https://mp.weixin.qq.com/s/test')
+        self.assertEqual(result['content_html'], fragment)
+        self.assertNotIn('not-for-export', result['content_html'])
+        self.assertNotIn('广告及评论', result['content_text'])
+        self.assertEqual(result['published_at'], '')
+        self.assertEqual(result['date_source'], 'unknown')
+
+    def test_unclosed_container_does_not_claim_rich_html_available(self):
+        self.assertEqual(c._body_html('<div id="js_content"><p>' + TEXT + '</p>'), '')
+        raw = ('<div id="js_name">测试公众号</div><h1 id="activity-name">标题</h1>'
+               '<div id="js_content"><p>' + TEXT + '</p>')
+        with patch.object(c, 'request', return_value=(raw, 'https://mp.weixin.qq.com/s/test')):
+            with self.assertRaisesRegex(c.CollectionError, '正文容器不完整'):
+                c._direct_article('https://mp.weixin.qq.com/s/test')
+        with self.assertRaisesRegex(c.CollectionError, '正文容器不完整'):
+            c._backend_article(article(content=raw), {'name': '测试公众号', 'id': 'MP_WXS_123'})
+
+    def test_backend_preserves_body_fragment_but_rejects_challenge(self):
+        result = self.run_collect(config(), FakeClient(new=[article()]))
+        self.assertEqual(result['articles'][0]['content_html'], article()['content'])
+        challenge = '<div id="captcha">' + TEXT + '</div>'
+        with patch.object(c, '_direct_article', side_effect=c.CollectionError('captcha_required', '需要验证')):
+            blocked = self.run_collect(config(), FakeClient(new=[article('challenge', content=challenge)]))
+        self.assertFalse(any(row['url'].endswith('/challenge') for row in blocked['articles']))
+        self.assertTrue(any(issue['code'] == 'captcha_required' for issue in blocked['issues']))
+        with self.assertRaisesRegex(c.CollectionError, '没有可核验的正文容器'):
+            c._backend_article(article(content='<html><body>访问频繁，请稍后再试。' * 12 + '</body></html>'),
+                               {'name': '测试公众号', 'id': 'MP_WXS_123'})
+
     def test_database_paging_recovers_more_than_twenty_collect_results(self):
         rows = [article(str(index)) for index in range(101)]
         client = FakeClient(rows=rows, new=rows[:20])

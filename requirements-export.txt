@@ -1,0 +1,3 @@
+# Optional rich Markdown export. Plain-text collection uses the standard library.
+beautifulsoup4==4.13.4
+markdownify==1.2.0

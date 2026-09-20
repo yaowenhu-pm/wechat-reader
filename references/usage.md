@@ -1,114 +1,116 @@
-# 公众号原文工具包
+# 使用指南
 
-把这整个目录交给能运行 Python 的 AI 助手，并让它读取 `SKILL.md`。你提供公众号名单和整理要求，它负责修改配置、调用采集、读原文并生成报告。
+把工具包交给能读写文件、运行 Python 的 AI，并让它读取 `SKILL.md`。通常交付两部分：原文 Markdown 与本地图片，以及按个人规则整理的独立 PDF。用户只要原文时，完成原文导出与检查即可。
 
-可直接复制这句话：
+可直接说：
 
-> 请读取这个工具包的 SKILL.md。我关注的公众号是：……。先核对账号，获取可访问的原文，保存原文和来源链接。然后按我的要求整理：……。报告分为：……，最终给我 PDF。遇到登录需要我扫码；账号同名或找不到时告诉我，不要猜。
+> 读取 SKILL.md。获取这些公众号／文章链接：……，给我原文 Markdown 和图片，再按这些栏目整理成 PDF：……。需要登录时让我扫码，未取得的内容明确说明。交付前检查文字、图片路径和 PDF。
 
-## 可以改什么
+以下命令中的 `SKILL` 替换为工具包绝对目录，在自己的工作目录运行；配置、登录数据与真实文章放在个人目录，不改工具包自带示例。
 
-- `accounts`：任意公众号名称列表，不限制在内置行业名单。
-- `selection`：日期、每号篇数、包含或排除的关键词。
-- `output.instructions`：你希望 AI 怎么读、怎么整理。
-- `output.sections`：最终交付有哪些栏目，每栏怎么写。
-- `output.formats`：HTML、Markdown、PDF。
+## 环境
 
-Schema 是配置的格式约定；日常修改 `config.json` 即可，不必改 Schema 定义。也可以继续改 Skill 和脚本适配自己的流程。
-
-## 运行环境
-
-原文工具和 HTML/Markdown 导出使用 Python 3.8+。采集端另用 Python 3.13 的独立环境，安装方法见 [采集端准备](collector-setup.md)。中文 PDF 需要 ReportLab，可在你自己的虚拟环境中运行：
+采集 CLI 使用 Python 3.8+。原文图文导出安装 `requirements-export.txt`；整理 PDF 另需 ReportLab。建议使用自己的虚拟环境：
 
 ```text
 python -m venv .venv
-# Windows 使用 .venv/Scripts/python；macOS/Linux 使用 .venv/bin/python
-.venv/Scripts/python -m pip install reportlab
+# Windows 后续使用 .venv/Scripts/python；macOS/Linux 使用 .venv/bin/python
+.venv/Scripts/python -m pip install -r "SKILL/requirements-export.txt" reportlab
 ```
 
-上面的 AI 助手需要具备本地命令和文件访问能力；只支持聊天或附件阅读的产品不能直接运行采集。
+下文的 `python` 指已安装依赖的那个解释器。按名称采集所需的服务另使用 Python 3.13，见[采集端准备](collector-setup.md)。只支持聊天或附件阅读的 AI 产品不能直接运行本地采集。
 
-## 第一次使用：按公众号名称
+## 先取得正文
 
-在自己的工作目录执行，将 `SKILL` 换成工具包目录的绝对路径；后续所有相对命令路径也以该工作目录为准：
+**一篇或多篇文章链接：** 将真实链接每行一条写入自己的 `urls.txt`，允许空行与 `#` 注释行，可以跨公众号。
 
 ```text
-python SKILL/scripts/reader.py init --accounts "动脉网" "36氪" --out config.json
-python SKILL/scripts/reader.py validate --config config.json
+python "SKILL/scripts/reader.py" init --urls-file urls.txt --out config.json
+python "SKILL/scripts/reader.py" collect --config config.json --out run
 ```
 
-准备采集端并扫码后，设置 `collector.credentials_file`（相对 `config.json` 所在目录）或配置的 Token 环境变量。
+也可用 `init --urls "链接一" "链接二" --out config.json`。纯链接模式不要求采集端登录，只读明确提供的文章，不扩展到整个账号。重复链接去重，同一推送中不同文章保留；某篇失败不阻止其余文章。
 
-需要登录时先运行以下命令，打开返回的图片地址，由自己用微信扫码：
+**按公众号名称：** 创建配置，准备自己的采集服务并填写 `collector.base_url`、`collector.credentials_file` 或 Token 环境变量名。凭据文件路径相对配置文件解析。
 
 ```text
-python SKILL/scripts/reader.py qr --config config.json
-python SKILL/scripts/reader.py status --config config.json
+python "SKILL/scripts/reader.py" init --accounts "公众号一" "公众号二" --out config.json
+python "SKILL/scripts/reader.py" validate --config config.json
+python "SKILL/scripts/reader.py" status --config config.json
 ```
 
-已有有效登录时不必重新申请二维码。`status` 表示配置和扫码状态，仍需实际抓取验证。
+已有有效登录无需重新扫码；需要登录时运行 `reader.py qr --config config.json`，由用户本人打开返回的二维码图片并扫码，再检查 status。之后运行：
 
 ```text
-python SKILL/scripts/reader.py resolve --config config.json --out run
-python SKILL/scripts/reader.py collect --config config.json --out run
-python SKILL/scripts/reader.py prepare --config config.json --articles run/articles.json --out run
+python "SKILL/scripts/reader.py" resolve --config config.json --out run
+python "SKILL/scripts/reader.py" collect --config config.json --out run
 ```
 
-让 AI 阅读完整 `reading-pack.json`，按配置填写 `editorial.json`，再执行：
+同名或无法核验时，提供该号文章链接或准确账号标识继续定位。账号对象内的 `article_url` 是定位账号的线索；只读某篇文章应使用顶层 `article_urls`。采集端缺少正文时，程序会尝试从原文页面补读并核对身份，失败则记录原因。
+
+已有正文可用 `reader.py import --config config.json --input articles.json --out run` 导入，只接受标记为 `content_kind: "fulltext"`、带微信原文链接的记录，不把摘要扩写成原文。
+
+两种入口都需检查 `run/collection-status.json`。退出码 `2` 可能表示部分失败或覆盖提醒，不代表所有正文都未取得；退出码 `0` 也不证明完整公众号历史。失败不能解释成账号没有更新。
+
+## 导出原文 Markdown 与图片
+
+`collect` 保留 `run/articles.json` 和基础文本 `run/originals/<article-id>.md`。交付带图片的原文时，再运行独立出口：
 
 ```text
-python SKILL/scripts/render_report.py --config config.json --articles run/articles.json --report run/editorial.json --out run/delivery
+python "SKILL/scripts/export_originals.py" --articles run/articles.json --out run/source-delivery
 ```
 
-## 直接读取一篇或批量文章链接
+每轮导出使用新的目录，例如 `run/source-delivery-2026-09-20`。若目录内已有原文文件，程序拒绝覆盖；重试时换一个 `--out`，保留上轮交付。可加 `--offline` 只验证转换、不下载图片；存在图片时会保留源链接并记录部分导出。出口返回 `0` 表示本轮完整导出，`2` 表示部分导出或失败，详情以本轮状态与错误信息为准。
 
-只输入链接时，不需要提供公众号名称或安装采集端。把真实链接每行一条写到自己的 `urls.txt`，可以跨不同公众号：
+输出结构：
 
 ```text
-python SKILL/scripts/reader.py init --urls-file urls.txt --out links-config.json
-python SKILL/scripts/reader.py collect --config links-config.json --out links-run
-python SKILL/scripts/reader.py prepare --config links-config.json --articles links-run/articles.json --out links-run
+run/source-delivery/
+  export-status.json
+  originals/
+    <article-id>/
+      article.md
+      images/
 ```
 
-也可以用 `init --urls "链接一" "链接二" --out links-config.json`。单篇和批量用同一个入口；脚本只读取明确给出的文章，不扩展到整个账号。少量失败不会中断其他链接，检查 `collection-status.json` 中的逐链接结果。重复链接自动去重；同一推送中的不同文章不会合并。
+有原始 HTML 时，导出器转换正文并保存图片，Markdown 用相对路径引用本地图。若只有纯文本，则明确记录图片不可验证，不能称为完整图文导出。图片下载失败时保留远程链接，并在 `export-status.json` 标记 `partial`；不能将“有 Markdown 文件”当成图片均已落地。
 
-然后让 AI 完整阅读 `links-run/reading-pack.json`，按照配置整理为 `links-run/editorial.json`，再用上述 `render_report.py` 命令（换成对应路径）导出。批量原文抓取本身不会调用 AI 或自动产生语义总结。
+标题、公众号、作者和发布日期按已取得证据填写。不知道发布日期就注明未知，不把抓取时间或文件生成时间当作发布日期。原文出口保留内容；个人筛选、摘要与判断放到独立整理稿。
 
-文章可能要求验证、已删除或正文不可访问；直接链接入口也不能保证所有链接都成功。不以标题或摘要补齐正文。
+交付前实际打开 Markdown，核对正文起止、段落及图片引用；检查每个相对图片路径和文件可读性。有源 HTML 时可比对 `#js_content` 与导出正文，允许排版和空白变化，但不能漏段。连同整个 `originals/<article-id>/` 文件夹交付，移动时保持 `article.md` 与 `images/` 的相对位置。
 
-## 输出
+## AI 阅读后生成独立整理 PDF
 
-| 文件 | 用途 |
-| --- | --- |
-| `articles.json` | 标准化原文，含公众号、链接、正文、哈希等；可交给别的整理程序 |
-| 逐篇 Markdown 文件 | 可直接阅读、保留和复用的正文 |
-| `collection-status.json` | 抓取结果、未成功账号和覆盖范围 |
-| `reading-pack.json` | 原文与个人整理规则，给 AI 阅读 |
-| `editorial.json` | AI 整理后的结构化内容；修改它可重导出 |
-| `delivery/report.html`、`report.md`、`report.pdf` | 按配置选择生成的最终交付 |
-
-采集命令退出码 `2` 表示有失败项或覆盖提醒，不代表全部原文都未取得；查看 `collection-status.json` 和实际的 `articles.json` 再决定。退出码 `0` 也只表示本次所选入口读取成功，不证明完整公众号历史。
-
-报告导出会核对来源 ID、正文哈希和引文是否真实出现在正文中。这个校验能阻止凭空造引文，但不能证明文章报道本身为真，仍需要 AI 正确判断。
-
-## 不登录也能验证格式
-
-`examples/demo-*` 都是合成内容，不能作为真实新闻或抓取成功证明。直接执行：
+在 `config.json` 修改 `output.instructions` 与 `output.sections`，确定关注要求、栏目及写法，`output.formats` 中加入 `pdf`。日期、关键词与每号篇数在 `selection` 中设置，完整字段见[配置说明](configuration.md)。
 
 ```text
-python SKILL/scripts/render_report.py --config SKILL/examples/demo-config.json --articles SKILL/examples/demo-articles.json --report SKILL/examples/demo-report.json --out demo-output
+python "SKILL/scripts/reader.py" prepare --config config.json --articles run/articles.json --out run
 ```
 
-默认生成 HTML 和 Markdown；加 `--pdf` 可验证中文 PDF。没有 ReportLab 时按上面的虚拟环境方式安装，再使用该环境的 Python 执行。
+让 AI 完整阅读 `run/reading-pack.json`，以 `report-template.json` 为结构参考，另存 `run/editorial.json`。每个条目引用对应文章 ID、正文哈希及连续短引文，区分原文事实、作者观点和推断。栏目允许为空，不凑内容，也不把全文复制进整理报告。
 
-示例已经是规范的原文结构，也可直接执行 `reader.py prepare --config SKILL/examples/demo-config.json --articles SKILL/examples/demo-articles.json --out demo-reading`，让 AI 改成自己的栏目后重新整理。示例链接是 `example.com` 占位地址，不能拿它们执行真实抓取或 `import`；`import` 只接受带微信原文链接的正文记录。
+```text
+python "SKILL/scripts/render_report.py" --config config.json --articles run/articles.json --report run/editorial.json --out run/delivery
+```
 
-## 实际覆盖边界
+按配置生成 `report.pdf`、`report.html`、`report.md`。导出器核对来源 ID、正文哈希和引文，但不替代语义核对。打开实际 PDF 并查看渲染结果，检查中文、分页、裁切和原文链接；缺依赖或导出失败就明确说明未生成，不能把其他文件改名为 PDF。交付原文目录与独立报告，简要说明未完成项和覆盖范围。
 
-名称输入不等于所有账号均可抓。工具会核验身份；公众号后台搜索可能需要另一种登录，公开目录也可能缺号或名称过时，可用该号的一篇文章链接辅助定位。目录只用于找标识，不把目录当作全文来源。
+采集及导出脚本不调用模型；语义整理由当前 AI 会话完成，无需另填模型密钥。仅运行采集命令不会自动生成总结。
 
-当前适配的是 WeRSS 微信读书采集接口及其本地文章库。接口可能只返回最新文章，或限制历史和分页，工具会记录不完整状态；没有稳定日期证据的文章不会伪装为某日期发布。`unknown_date: include` 会保留并标注未知日期，`exclude` 会排除，不能因此声称日期范围已完整覆盖。
+## 不登录也能验证整理格式
 
-原文指接口实际返回的正文文本；图片内文字、音频、视频、付费部分不在已验证能力内。遇到验证码或登录失效先处理登录，工具不绕过平台限制。采集不调用模型，不会把全文自动发给外部模型服务；你让哪一个 AI 助手读文件，由你的使用环境决定。
+`examples/demo-*` 是合成内容，仅用于格式验证：
 
-仅本地交付，未自带定时调度或对外消息发送。接收者自己登录；分享 ZIP 内不含发送者的登录信息和真实文章。
+```text
+python "SKILL/scripts/render_report.py" --config "SKILL/examples/demo-config.json" --articles "SKILL/examples/demo-articles.json" --report "SKILL/examples/demo-report.json" --out demo-output --pdf
+```
+
+也可将示例传给 `reader.py prepare`，改栏目后重新整理。示例的 `example.com` 链接不能用于真实抓取或 `import`，没有原始 HTML 的合成材料也不能证明图文导出成功。
+
+## 覆盖与分享
+
+名称输入不等于所有账号都能抓取。当前账号采集适配 WeRSS 微信读书接口及其本地文章库，历史和分页可能受限；公众号后台搜索可能还需要另一种登录。公开目录仅用于发现账号标识，不能当作全文来源。
+
+未知日期按 `selection.unknown_date` 保留或排除，不能据此宣称某段日期已完整覆盖。遇到验证码、登录失效、删除或付费限制时如实记录，不绕过限制。下载图片不等于识别其中的文字，音视频和付费内容也不在已验证范围。
+
+分享代码时只打包干净代码、说明及合成示例；个人登录状态、凭据、原始 HTML、真实全文与交付目录留在本地。工具没有内置定时无人值守分析或对外发送功能。

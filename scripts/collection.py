@@ -7,6 +7,7 @@ import base64
 import csv
 import datetime as dt
 from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
 import io
 import json
 import os
@@ -191,6 +192,58 @@ def _directory(config, config_dir):
     return list(csv.DictReader(io.StringIO(raw.lstrip('\ufeff'))))
 
 
+class _BodyHTMLParser(HTMLParser):
+    """Retain only the article container, never the surrounding page scripts."""
+    VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
+            'meta', 'param', 'source', 'track', 'wbr'}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.parts = []
+        self.stack = []
+        self.done = False
+
+    def handle_starttag(self, tag, attrs):
+        if self.done:
+            return
+        if not self.stack and dict(attrs).get('id') != 'js_content':
+            return
+        self.parts.append(self.get_starttag_text())
+        if tag not in self.VOID:
+            self.stack.append(tag)
+
+    def handle_startendtag(self, tag, attrs):
+        if self.stack and not self.done:
+            self.parts.append(self.get_starttag_text())
+
+    def handle_endtag(self, tag):
+        if not self.stack or self.done or tag not in self.stack:
+            return
+        self.parts.append('</' + tag + '>')
+        index = len(self.stack) - 1 - self.stack[::-1].index(tag)
+        del self.stack[index:]
+        if not self.stack:
+            self.done = True
+
+    def handle_data(self, data):
+        if self.stack and not self.done:
+            self.parts.append(data)
+
+    def handle_entityref(self, name):
+        self.handle_data('&' + name + ';')
+
+    def handle_charref(self, name):
+        self.handle_data('&#' + name + ';')
+
+
+def _body_html(raw):
+    parser = _BodyHTMLParser()
+    parser.feed(raw)
+    parser.close()
+    # A truncated container cannot support a claim of a complete rich-text export.
+    return ''.join(parser.parts) if parser.done else ''
+
+
 def _direct_article(url, expected_name=None):
     url = normalize_article_url(url)
     parts = urllib.parse.urlsplit(url)
@@ -212,6 +265,9 @@ def _direct_article(url, expected_name=None):
         raise CollectionError('account_name_mismatch', '原文显示的公众号名与输入不一致：' + publisher)
     if len(body) < 80:
         raise CollectionError('body_too_short', '正文少于 80 字符，未认定为完整原文')
+    body_html = _body_html(raw)
+    if not body_html:
+        raise CollectionError('article_body_unavailable', '正文容器不完整，未认定为完整原文')
     published = ''
     match = re.search(r'(?:var\s+)?(?:ct|publish_time)\s*=\s*[\'\"]?(\d{10})', raw)
     if match:
@@ -227,7 +283,8 @@ def _direct_article(url, expected_name=None):
         except CollectionError:
             pass
     return {'title': title, 'account': publisher, 'account_id': account_id, 'url': url,
-            'original_wechat_url': url, 'content_text': body, 'content_kind': 'fulltext',
+            'original_wechat_url': url, 'content_text': body, 'content_html': body_html,
+            'content_kind': 'fulltext',
             'content_hash': digest(body), 'published_at': published,
             'date_source': 'original_page_timestamp' if published else 'unknown',
             'fetched_at': _now(), 'provenance': ('公众号原文页面在线读取，并核对公众号名称' if expected_name is not None
@@ -360,12 +417,20 @@ def _backend_article(item, account):
     if item.get('mp_id') and _mp_id(item['mp_id']) != _mp_id(account['id']):
         raise CollectionError('account_id_mismatch', '采集记录的公众号标识不一致')
     content = item.get('content') or ''
-    text = extract_text(content)
+    container = _body_html(content)
+    if not container and re.search(r'\bid\s*=\s*[\'\"]js_content[\'\"]', content, re.I):
+        raise CollectionError('body_missing', '采集记录的正文容器不完整')
+    if not container and re.search(r'<(?:!doctype\s+html|html\b|head\b|body\b)', content, re.I):
+        raise CollectionError('body_missing', '采集记录是整页 HTML，却没有可核验的正文容器')
+    if not container and re.search(r'wappoc_appmsgcaptcha|id\s*=\s*[\'\"](?:captcha|verify)[\'\"]', content, re.I):
+        raise CollectionError('body_missing', '采集记录为验证页面，未取得正文')
+    text = extract_text(container or content)
     if len(text) < 80:
         raise CollectionError('body_missing', '采集记录没有可用的正文，未导出摘要')
     return {'title': item.get('title') or '未命名文章', 'account': account['name'],
             'account_id': account['id'], 'url': url, 'original_wechat_url': url,
-            'content_text': text, 'content_kind': 'fulltext', 'content_hash': digest(text),
+            'content_text': text, 'content_html': container or (content if re.search(r'<[A-Za-z][^>]*>', content) else ''),
+            'content_kind': 'fulltext', 'content_hash': digest(text),
             # Current WeRSS writes capture time into publish_time in cover fallback mode.
             'published_at': '', 'date_source': 'unknown_backend_may_use_capture_time',
             'backend_publish_time': item.get('publish_time'), 'fetched_at': _now(),

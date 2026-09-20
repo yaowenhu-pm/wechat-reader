@@ -38,7 +38,8 @@ class ReaderTests(unittest.TestCase):
 
     def test_prepare_excludes_secrets_and_rejects_modified_body(self):
         article = {'id': 'one', 'account': '动脉网', 'title': '测试', 'url': 'https://example.com/1',
-                   'content_text': '测试正文', 'content_kind': 'fulltext', 'content_hash': reader.digest('测试正文')}
+                   'content_text': '测试正文', 'content_html': '<p>测试正文</p>',
+                   'content_kind': 'fulltext', 'content_hash': reader.digest('测试正文')}
         self.config['collector']['credentials_file'] = 'SECRET_FILE'
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'articles.json'
@@ -46,6 +47,7 @@ class ReaderTests(unittest.TestCase):
             reader.prepare(self.config, path, Path(temp) / 'out')
             payload = (Path(temp) / 'out' / 'reading-pack.json').read_text(encoding='utf-8')
             self.assertNotIn('SECRET_FILE', payload)
+            self.assertNotIn('content_html', payload)
             article['content_text'] += '被修改'
             reader.write_json(path, [article])
             with self.assertRaises(ValueError):

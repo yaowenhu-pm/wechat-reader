@@ -10,6 +10,8 @@ __pycache__/
 /*-run/
 /demo-output/
 /demo-reading/
+/source-delivery/
+/delivery/
 /collector-state/
 login.json
 *.log
