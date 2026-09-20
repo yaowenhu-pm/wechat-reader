@@ -354,13 +354,15 @@ def resolve(config, config_dir):
 
 
 def _backend_article(item, account):
+    # Validate source identity before body availability so a missing body cannot
+    # turn an unrelated record into an eligible original-page fallback.
+    url = normalize_article_url(item.get('url') or item.get('link') or '')
+    if item.get('mp_id') and _mp_id(item['mp_id']) != _mp_id(account['id']):
+        raise CollectionError('account_id_mismatch', '采集记录的公众号标识不一致')
     content = item.get('content') or ''
     text = extract_text(content)
     if len(text) < 80:
         raise CollectionError('body_missing', '采集记录没有可用的正文，未导出摘要')
-    url = normalize_article_url(item.get('url') or item.get('link') or '')
-    if item.get('mp_id') and _mp_id(item['mp_id']) != _mp_id(account['id']):
-        raise CollectionError('account_id_mismatch', '采集记录的公众号标识不一致')
     return {'title': item.get('title') or '未命名文章', 'account': account['name'],
             'account_id': account['id'], 'url': url, 'original_wechat_url': url,
             'content_text': text, 'content_kind': 'fulltext', 'content_hash': digest(text),
@@ -368,6 +370,21 @@ def _backend_article(item, account):
             'published_at': '', 'date_source': 'unknown_backend_may_use_capture_time',
             'backend_publish_time': item.get('publish_time'), 'fetched_at': _now(),
             'provenance': '已登录微信读书采集正文；账号名在线核验；原文链接由采集器提供'}
+
+
+def _original_page_fallback(item, account):
+    """Read one validated collector record's original page, preserving its identity."""
+    url = normalize_article_url(item.get('url') or item.get('link') or '')
+    article = _direct_article(url, account['name'])
+    if _name(article.get('account')) != _name(account['name']):
+        raise CollectionError('account_name_mismatch', '补读原文的公众号名称与已核验账号不一致')
+    if article.get('account_id') and _mp_id(article['account_id']) != _mp_id(account['id']):
+        raise CollectionError('account_id_mismatch', '补读原文的公众号标识与已核验账号不一致')
+    id_source = 'original_page' if article.get('account_id') else 'verified_collector_record'
+    article.update(account_id=_mp_id(account['id']), account_id_source=id_source,
+                   retrieval_method='original_page_fallback', backend_publish_time=item.get('publish_time'))
+    article['provenance'] += '；采集器正文缺失，本轮通过其原文链接补读；公众号名称及可读标识与已核验账号比对'
+    return article
 
 
 def _timestamp(value, end=False):
@@ -432,7 +449,8 @@ def collect(config, config_dir, out):
     for account in accounts:
         name = account['requested_name']
         coverage = {'account': name, 'status': 'failed', 'historical_coverage': 'unknown',
-                    'backend_records': 0, 'body_failures': 0, 'list_truncated': False}
+                    'backend_records': 0, 'body_failures': 0, 'list_truncated': False,
+                    'original_page_fallback': {'attempted': 0, 'succeeded': 0, 'failed': 0}}
         source_coverage.append(coverage)
         if account['status'] not in ('resolved', 'resolved_article', 'resolved_rss'):
             continue
@@ -518,6 +536,18 @@ def collect(config, config_dir, out):
                 try:
                     received.append(_backend_article(item, account))
                 except Exception as exc:
+                    if isinstance(exc, CollectionError) and exc.code == 'body_missing':
+                        fallback = coverage['original_page_fallback']
+                        fallback['attempted'] += 1
+                        try:
+                            received.append(_original_page_fallback(item, account))
+                            fallback['succeeded'] += 1
+                            continue
+                        except Exception as fallback_error:
+                            fallback['failed'] += 1
+                            issues.append({**_error(name, fallback_error),
+                                           'url': item.get('url') or item.get('link'),
+                                           'stage': 'original_page_fallback'})
                     issues.append(_error(name, exc))
                     coverage['body_failures'] += 1
                     source_ok = False
@@ -596,6 +626,9 @@ def _export(config, out, records, accounts, issues, source_coverage, fingerprint
                 'historical_coverage': 'unknown' if any(x['historical_coverage'] == 'unknown' for x in source_coverage) else 'not_requested',
                 'sources': source_coverage, 'selected_articles': len(selected), 'unknown_date_articles': unknown_count,
                 'reused_articles': sum(bool(a.get('reused_from_previous_run')) for a in selected), 'excluded': excluded}
+    coverage['original_page_fallback'] = {
+        field: sum(source.get('original_page_fallback', {}).get(field, 0) for source in source_coverage)
+        for field in ('attempted', 'succeeded', 'failed')}
     for link in links:
         link.update(selection_by_url.get(link['url'], {'selected': False}))
         source_coverage.append({'source_type': 'article_url', 'scope': 'one_supplied_article',

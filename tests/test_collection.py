@@ -98,10 +98,70 @@ class CollectionTests(unittest.TestCase):
         self.assertTrue(any(issue['code'] == 'wechat_login_required' for issue in again['issues']))
 
     def test_summary_never_exported_as_body(self):
-        result = self.run_collect(config(), FakeClient(new=[article(content='', description=TEXT)]))
+        with patch.object(c, '_direct_article', side_effect=c.CollectionError('article_body_unavailable', '原文也不可读')):
+            result = self.run_collect(config(), FakeClient(new=[article(content='', description=TEXT)]))
         self.assertEqual(result['articles'], [])
         self.assertEqual(result['coverage']['status'], 'failed')
         self.assertTrue(any(issue['code'] == 'body_missing' for issue in result['issues']))
+
+    def test_missing_backend_body_can_be_filled_from_verified_original_page(self):
+        fresh = direct_body('https://mp.weixin.qq.com/s/one', '测试公众号')
+        fresh['account_id'] = 'MP_WXS_123'
+        with patch.object(c, '_direct_article', return_value=fresh) as fetch:
+            result = self.run_collect(config(), FakeClient(new=[article(content='')]))
+        fetch.assert_called_once_with('https://mp.weixin.qq.com/s/one', '测试公众号')
+        self.assertEqual(len(result['articles']), 1)
+        exported = result['articles'][0]
+        self.assertEqual(exported['retrieval_method'], 'original_page_fallback')
+        self.assertEqual(exported['published_at'], fresh['published_at'])
+        self.assertEqual(exported['date_source'], 'original_page_timestamp')
+        self.assertEqual(exported['content_hash'], c.digest(TEXT))
+        self.assertEqual(exported['account_id'], 'MP_WXS_123')
+        self.assertIn('本轮通过其原文链接补读', exported['provenance'])
+        self.assertEqual(result['coverage']['original_page_fallback'], {'attempted': 1, 'succeeded': 1, 'failed': 0})
+        self.assertEqual(result['coverage']['sources'][0]['body_failures'], 0)
+        self.assertFalse(any(issue['code'] == 'body_missing' for issue in result['issues']))
+
+    def test_original_page_fallback_rejects_another_publishers_name(self):
+        raw = '<div id="js_name">别的公众号</div><div id="activity-name">标题</div><div id="js_content">' + TEXT + '</div>'
+        with patch.object(c, 'request', return_value=(raw, 'https://mp.weixin.qq.com/s/one')):
+            result = self.run_collect(config(), FakeClient(new=[article(content='')]))
+        self.assertEqual(result['articles'], [])
+        self.assertEqual(result['coverage']['original_page_fallback']['failed'], 1)
+        self.assertTrue(any(issue['code'] == 'account_name_mismatch' for issue in result['issues']))
+
+    def test_original_page_fallback_rejects_mismatched_page_account_id(self):
+        fresh = direct_body('https://mp.weixin.qq.com/s/one', '测试公众号')
+        with patch.object(c, '_direct_article', return_value=fresh):
+            result = self.run_collect(config(), FakeClient(new=[article(content='')]))
+        self.assertEqual(result['articles'], [])
+        self.assertTrue(any(issue['code'] == 'account_id_mismatch' for issue in result['issues']))
+
+    def test_failed_original_page_fallback_keeps_partial_result_and_failure_evidence(self):
+        with patch.object(c, '_direct_article', side_effect=c.CollectionError('captcha_required', '需要验证码')):
+            result = self.run_collect(config(), FakeClient(new=[article('good'), article('bad', content='')]))
+        self.assertEqual(len(result['articles']), 1)
+        self.assertEqual(result['coverage']['status'], 'partial')
+        self.assertEqual(result['coverage']['original_page_fallback'], {'attempted': 1, 'succeeded': 0, 'failed': 1})
+        self.assertTrue(any(issue.get('stage') == 'original_page_fallback' and issue['code'] == 'captcha_required' for issue in result['issues']))
+
+    def test_unrelated_backend_account_or_invalid_url_never_enters_fallback(self):
+        for invalid in (article(content='', mp_id='MP_WXS_999'),
+                        article(content='', url='https://example.com/s/one')):
+            with self.subTest(item=invalid):
+                with patch.object(c, '_direct_article') as fetch:
+                    result = self.run_collect(config(), FakeClient(new=[invalid]))
+                fetch.assert_not_called()
+                self.assertEqual(result['articles'], [])
+                self.assertEqual(result['coverage']['original_page_fallback']['attempted'], 0)
+
+    def test_fallback_without_page_biz_retains_verified_record_identity(self):
+        fresh = direct_body('https://mp.weixin.qq.com/s/one', '测试公众号')
+        fresh['account_id'] = ''
+        with patch.object(c, '_direct_article', return_value=fresh):
+            result = self.run_collect(config(), FakeClient(new=[article(content='')]))
+        self.assertEqual(result['articles'][0]['account_id'], 'MP_WXS_123')
+        self.assertEqual(result['articles'][0]['account_id_source'], 'verified_collector_record')
 
     def test_database_page_limit_reported(self):
         settings = config()
