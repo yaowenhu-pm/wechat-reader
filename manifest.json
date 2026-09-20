@@ -1,0 +1,30 @@
+{
+  "name": "wechat-reader",
+  "version": "1.1",
+  "files": {
+    "SKILL.md": "38849d840071b55f38774a5ec8fc7619a3ff457bdd1368c0ab9c8d3137c9b5f1",
+    "README.md": "077961bc153684d61536f618ff528433addefd03eac61ec9afc0ad0748efc4db",
+    ".gitignore": "ff0784fe9c5aae9abae89c7a8d5e2d56ad1765635bcbebcca06550b7baee5f35",
+    "scripts/reader.py": "fed96d4f2ac23c4c26cbc3d2e3380dd781c9c9829ebaf3f568323261469c48e1",
+    "scripts/collection.py": "43e6673ee66374e85a9c70314020268d49f3c0c6e81cafb8d548ddb2820f17a0",
+    "scripts/render_report.py": "4d4ff1341d6313c1aa053696c47882c0aeafb31317777f8cb0b092a1f98ef6dd",
+    "scripts/setup_collector.py": "0e442d2ac20b6b781279783c4ec0516da65c78414083f5c48122c74ab543cb0d",
+    "schemas/config.schema.json": "d0f13e7d02db1742a36c365c3c382a994f6b8c18ee3e2eac6fca21e5af4094c0",
+    "schemas/articles.schema.json": "57e559fc17c862db839f37440a5fd827dfb503d281e4bff8b8f9784b001230b4",
+    "schemas/report.schema.json": "5fb3e27be38f3e615a6664bc8caaa28bb08ee75c90c9e6b93271840c65d3713a",
+    "references/configuration.md": "a1ae8e42b049cf5182db08b574d8eab164beb547f8886f0e15d0a45d99aa6c1c",
+    "references/collector-setup.md": "cad54c7f83b9ddfb06d37015197998eb11d55412b6dabc655c6f63bffa72f518",
+    "references/usage.md": "af39042f85967eac11663624e4102f1ff64850dc5ac6b071076d0c250db4fbde",
+    "examples/config.json": "23c17e73cf2de592fde6a8bc8b3fbb84254b4a3b6d0367deff9a12947e8d36b2",
+    "examples/demo-config.json": "06e5c32cac08dcea859a90a0d79f2db3edbdc1c8971f449b2903f3dffc5d5896",
+    "examples/demo-articles.json": "275c9dded071dfd62870c78724729815ee9e0da84e9adffc3c02209d1d9132e9",
+    "examples/demo-report.json": "67f83c5d0f70ef429fb3d5920073d63bb6879849ed50abb6c498d0941f06c9f7",
+    "examples/urls.txt": "dc798c542edf240cec0923e0109b0277231def554931783af580bdbbe41e3f23",
+    "tests/test_reader.py": "9cfbe5506a0679b9d51db335d51c8d7907748363a7b8f9ceb4593fb8d439677a",
+    "tests/test_collection.py": "3614032e66e6df2a6ff058265ec6dd593d9893d996b0614c0dfc920c0d2de64a",
+    "tests/test_render_report.py": "e369776b126d7c12cbd7f50ecb1435b1d413a91428af8b1af06eb4e16f1c67e5",
+    "tests/test_setup_collector.py": "0af09b5a8af69dfaf8c95229f8ca57f26c91ffdacfd50d6636c99e1646176291",
+    "scripts/watch.py": "3fac6b57e55f9b62f495e67871c8254b6c5e6e9e60f33f0275468f79a43a5d68"
+  },
+  "notes": "Only code, documentation, schemas and synthetic examples. No credentials or real articles."
+}

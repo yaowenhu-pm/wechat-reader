@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "与领域无关的原文交换格式",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "account", "title", "url", "content_text", "content_kind", "content_hash"],
+    "properties": {
+      "id": {"type": "string", "minLength": 1},
+      "account": {"type": "string", "minLength": 1},
+      "title": {"type": "string"},
+      "url": {"type": "string", "format": "uri"},
+      "original_wechat_url": {"type": "string"},
+      "content_text": {"type": "string", "minLength": 1},
+      "content_kind": {"const": "fulltext"},
+      "content_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+      "published_at": {"type": "string"},
+      "fetched_at": {"type": "string"},
+      "provenance": {"type": "string"}
+    }
+  }
+}

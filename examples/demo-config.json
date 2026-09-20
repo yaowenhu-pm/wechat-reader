@@ -1,0 +1,48 @@
+{
+  "$schema": "../schemas/config.schema.json",
+  "schema_version": "1.0",
+  "accounts": [
+    "合成示例号甲",
+    "合成示例号乙"
+  ],
+  "collector": {
+    "base_url": "http://127.0.0.1:8006",
+    "credentials_file": "./collector-state/login.json",
+    "token_env": "WECHAT_COLLECTOR_TOKEN",
+    "max_pages": 20,
+    "request_timeout_seconds": 90
+  },
+  "selection": {
+    "since": null,
+    "until": null,
+    "max_articles_per_account": 20,
+    "include_keywords": [],
+    "exclude_keywords": [],
+    "unknown_date": "include"
+  },
+  "output": {
+    "title": "公众号整理格式示例（合成内容）",
+    "instructions": "仅用于验证格式。下面的账号、事件和数据都是虚构的，不是新闻。",
+    "sections": [
+      {
+        "id": "highlights",
+        "title": "值得关注的内容",
+        "instructions": "挑出需要我了解的变化，说明发生了什么、为什么值得看。"
+      },
+      {
+        "id": "details",
+        "title": "具体信息",
+        "instructions": "按主题合并相关信息，保留关键数据与来源。"
+      },
+      {
+        "id": "questions",
+        "title": "需要继续核实",
+        "instructions": "指出原文没有回答、或证据不足的关键问题。"
+      }
+    ],
+    "formats": [
+      "html",
+      "markdown"
+    ]
+  }
+}

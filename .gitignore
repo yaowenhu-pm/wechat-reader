@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+.runtime/
+.env*
+/config.json
+/*-config.json
+/urls.txt
+/run/
+/*-run/
+/demo-output/
+/demo-reading/
+/collector-state/
+login.json
+*.log

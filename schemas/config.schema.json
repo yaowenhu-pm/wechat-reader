@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "公众号阅读任务配置",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "output"],
+  "anyOf": [
+    {"required": ["accounts"], "properties": {"accounts": {"minItems": 1}}},
+    {"required": ["article_urls"], "properties": {"article_urls": {"minItems": 1}}}
+  ],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema_version": {"const": "1.0"},
+    "accounts": {
+      "description": "按公众号选择来源；可为空或省略，但 accounts 与 article_urls 至少一项非空。",
+      "type": "array",
+      "items": {"oneOf": [
+        {"type": "string", "minLength": 1},
+        {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "id": {"type": "string", "minLength": 1},
+          "article_url": {"type": "string", "format": "uri"},
+          "rss_url": {"type": "string", "format": "uri"}
+        }}
+      ]}
+    },
+    "article_urls": {
+      "description": "直接读取这些原文，可与公众号混合；只填原文链接时无需登录采集服务。接受 mp.weixin.qq.com 的 /s?__biz=...&mid=... 或 /s/token 原文地址，去除追踪参数后去重，idx 不同的文章保留。",
+      "type": "array",
+      "items": {"type": "string", "format": "uri", "pattern": "^(?:http://mp\\.weixin\\.qq\\.com(?::80)?|https://mp\\.weixin\\.qq\\.com(?::443)?)/s(?:/[^/\\s?#]+(?:\\?[^\\s#]*)?|\\?[^\\s#]+)(?:#[^\\s]*)?$"}
+    },
+    "collector": {"type": "object", "additionalProperties": false, "properties": {
+      "base_url": {"type": "string", "format": "uri"},
+      "credentials_file": {"type": "string", "minLength": 1},
+      "token_env": {"type": "string", "minLength": 1},
+      "directory_file": {"type": "string", "minLength": 1},
+      "directory_url": {"type": "string"},
+      "max_pages": {"type": "integer", "minimum": 1, "maximum": 1000},
+      "request_timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 300}
+    }},
+    "selection": {"type": "object", "additionalProperties": false, "properties": {
+      "since": {"type": ["string", "null"], "format": "date"},
+      "until": {"type": ["string", "null"], "format": "date"},
+      "max_articles_per_account": {"type": "integer", "minimum": 1, "maximum": 1000},
+      "include_keywords": {"type": "array", "items": {"type": "string", "minLength": 1}},
+      "exclude_keywords": {"type": "array", "items": {"type": "string", "minLength": 1}},
+      "unknown_date": {"enum": ["include", "exclude"]}
+    }},
+    "output": {"type": "object", "additionalProperties": false, "required": ["title", "instructions", "sections"], "properties": {
+      "title": {"type": "string", "minLength": 1},
+      "instructions": {"type": "string", "minLength": 1},
+      "sections": {"type": "array", "minItems": 1, "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "title", "instructions"],
+        "properties": {"id": {"type": "string", "minLength": 1}, "title": {"type": "string", "minLength": 1}, "instructions": {"type": "string", "minLength": 1}}
+      }},
+      "formats": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["html", "markdown", "pdf"]}}
+    }}
+  }
+}

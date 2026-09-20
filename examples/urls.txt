@@ -1,0 +1,4 @@
+# 每行放一篇公众号原文链接，空行和 # 开头的注释行会忽略。
+# 把下面示例替换成你自己的真实链接；可以放多篇，不需要先填写公众号名称。
+https://mp.weixin.qq.com/s/REPLACE_WITH_ARTICLE_KEY_1
+https://mp.weixin.qq.com/s/REPLACE_WITH_ARTICLE_KEY_2
